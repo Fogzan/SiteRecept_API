@@ -6,4 +6,4 @@ RUN pip install -r requirements.txt
 COPY . .
 EXPOSE 4523
 
-CMD ["uvicorn", "main:app", "--host", "192.168.0.6", "--port", "4523"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "4523"]
