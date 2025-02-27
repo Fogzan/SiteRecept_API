@@ -5,6 +5,7 @@ import os
 from pydantic import BaseModel
 import random
 from passlib.context import CryptContext
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 load_dotenv()
@@ -15,6 +16,14 @@ collection_recipes = db['recipes']
 collection_users = db['users']
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Разрешенные домены
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешенные HTTP-методы
+    allow_headers=["*"],  # Разрешенные заголовки
+)
 
 @app.get("/")
 async def main():
