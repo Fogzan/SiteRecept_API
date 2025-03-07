@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import random
 from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
+from bson.objectid import ObjectId
 
 app = FastAPI()
 load_dotenv()
@@ -25,17 +26,24 @@ app.add_middleware(
     allow_headers=["*"],  # Разрешенные заголовки
 )
 
+
 @app.get("/")
 async def main():
     return {"message": "hello world!"}
 
+# 
+# РАБОТА С РЕЦЕПТАМИ
+# 
+
 @app.get("/get-all-recipes")
 async def getAllRecipes():
-    result_find = collection_recipes.find({}, {"_id":0})
+    result_find = collection_recipes.find({}, {})
     result = []
     for item in result_find:
+        item["_id"] = str(item["_id"])
         result.append(item)
     return result
+
 
 class Recipes(BaseModel):
     name: str
@@ -57,6 +65,78 @@ async def create_recipe(recipes: Recipes):
         status_code=status.HTTP_200_OK,
         detail="Recipe added"
     )
+
+
+class ForLike(BaseModel):
+    recipe_id: str
+    login: str
+
+@app.post("/recipe/set-like")
+async def set_like(forLike: ForLike):
+    recipe = collection_recipes.find_one({"_id": ObjectId(forLike.recipe_id)})
+    if not recipe:
+        return {"error": "there is no such recipe"}
+
+    test_user = collection_users.find_one({"login": forLike.login})
+    if not test_user:
+        return {"error": "invalid login"}
+
+    if forLike.login in recipe.get("likes", []):
+        collection_recipes.update_one(
+            {"_id": ObjectId(forLike.recipe_id)},
+            {"$pull": {"likes": forLike.login}}
+        )
+        return {
+            "status_code": status.HTTP_200_OK,
+            "detail": "like was successfully deleted",
+            "ction": "delete"
+        }
+
+    else:
+        collection_recipes.update_one(
+            {"_id": ObjectId(forLike.recipe_id)},
+            {"$push": {"likes": forLike.login}}
+        )
+        return {
+            "status_code": status.HTTP_200_OK,
+            "detail": "like was successfully set",
+            "ction": "set"
+        }
+
+
+class ForComment(BaseModel):
+    recipe_id: str
+    login: str
+    date: str
+    text: str
+
+@app.post("/recipe/set-comment")
+async def set_like(forComment: ForComment):
+    recipe = collection_recipes.find_one({"_id": ObjectId(forComment.recipe_id)})
+    if not recipe:
+        return {"error": "there is no such recipe"}
+    
+    test_user = collection_users.find_one({"login": forComment.login})
+    if not test_user:
+        return {"error": "invalid login"}
+
+    collection_recipes.update_one(
+            {"_id": ObjectId(forComment.recipe_id)},
+            {"$push": {"commet": {
+                "login": forComment.login,
+                "date": forComment.date,
+                "text": forComment.text
+            }}}
+        )
+
+    return HTTPException(
+        status_code=status.HTTP_200_OK,
+        detail="comment added successfully"
+    )
+
+# 
+#   РАБОТА С ПОЛЬЗОВАТЕЛЕМ 
+# 
 
 class User(BaseModel):
     login: str
@@ -94,9 +174,10 @@ async def test_user(user: UserAuth):
         return {"error": "invalid login"}
     test_user = collection_users.find_one({"login": user.login})
     if pwd_context.verify(user.password, test_user["password_hash"]):
-        return HTTPException(
-        status_code=status.HTTP_200_OK,
-        detail="User right"
-    )
+        return {
+            "status_code": status.HTTP_200_OK,
+            "detail": "User right",
+            "role": test_user["role"]
+        }
     else:
         return {"error": "invalid password"}
