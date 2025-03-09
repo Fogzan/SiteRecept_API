@@ -60,6 +60,8 @@ async def create_recipe(recipes: Recipes):
         "ingredients": recipes.ingredients,
         "text": recipes.text,
         "time": recipes.time,
+        "likes": [],
+        "comments": [],
     })
     return HTTPException(
         status_code=status.HTTP_200_OK,
