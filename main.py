@@ -63,8 +63,29 @@ async def create_recipe(recipes: Recipes):
     })
     return HTTPException(
         status_code=status.HTTP_200_OK,
-        detail="Recipe added"
+        detail="Recipe added successfully"
     )
+
+@app.delete("/delete-recipe")
+async def delete_item(recipe_id: str):
+    # Преобразуем item_id в ObjectId
+    obj_id = ObjectId(recipe_id)
+    
+    # Удаляем запись по _id
+    result = collection_recipes.delete_one({"_id": obj_id})
+    
+    # Проверяем, была ли удалена запись
+    if result.deleted_count == 1:
+        return HTTPException(
+            status_code=status.HTTP_200_OK,
+            detail="Recipe deleted successfully"
+            )
+    else:
+        return HTTPException(
+            status_code=404, 
+            detail="Item not found"
+            )
+    
 
 
 class ForLike(BaseModel):
@@ -122,7 +143,7 @@ async def set_like(forComment: ForComment):
 
     collection_recipes.update_one(
             {"_id": ObjectId(forComment.recipe_id)},
-            {"$push": {"commet": {
+            {"$push": {"comments": {
                 "login": forComment.login,
                 "date": forComment.date,
                 "text": forComment.text
