@@ -51,6 +51,7 @@ class Recipes(BaseModel):
     ingredients:str
     text: str
     time: str
+    user_login: str
 
 @app.post("/add-recipe")
 async def create_recipe(recipes: Recipes):
@@ -60,6 +61,7 @@ async def create_recipe(recipes: Recipes):
         "ingredients": recipes.ingredients,
         "text": recipes.text,
         "time": recipes.time,
+        "creator": recipes.user_login,
         "likes": [],
         "comments": [],
     })
@@ -68,7 +70,7 @@ async def create_recipe(recipes: Recipes):
         detail="Recipe added successfully"
     )
 
-@app.delete("/delete-recipe")
+@app.post("/delete-recipe")
 async def delete_item(recipe_id: str):
     # Преобразуем item_id в ObjectId
     obj_id = ObjectId(recipe_id)
