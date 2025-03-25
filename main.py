@@ -15,6 +15,7 @@ client = MongoClient(os.getenv('MONGODB_URI'))
 db = client['test_db_recipes']
 collection_recipes = db['recipes']
 collection_users = db['users']
+collection_collections = db['collections']
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
@@ -31,9 +32,9 @@ app.add_middleware(
 async def main():
     return {"message": "hello world!"}
 
-# 
+#-----------------------------------------------------------------------------------------------------------------------------------------
 # РАБОТА С РЕЦЕПТАМИ
-# 
+#-----------------------------------------------------------------------------------------------------------------------------------------
 
 @app.get("/get-all-recipes")
 async def getAllRecipes():
@@ -90,7 +91,9 @@ async def delete_item(recipe_id: str):
             detail="Item not found"
             )
     
-
+#-----------------------------------------------------------------------------------------------------------------------------------------
+# РАБОТА С ФУНКЦИОНАЛОМ
+#-----------------------------------------------------------------------------------------------------------------------------------------
 
 class ForLike(BaseModel):
     recipe_id: str
@@ -159,9 +162,9 @@ async def set_like(forComment: ForComment):
         detail="comment added successfully"
     )
 
-# 
+#-----------------------------------------------------------------------------------------------------------------------------------------
 #   РАБОТА С ПОЛЬЗОВАТЕЛЕМ 
-# 
+#-----------------------------------------------------------------------------------------------------------------------------------------
 
 class User(BaseModel):
     login: str
@@ -180,6 +183,7 @@ async def create_user(user: User):
         "email": user.email,
         "password_hash": pwd_context.hash(user.password),
         "role": user.role,
+        "collections": [],
     })
 
     return HTTPException(
@@ -206,3 +210,108 @@ async def test_user(user: UserAuth):
         }
     else:
         return {"error": "invalid password"}
+    
+#-----------------------------------------------------------------------------------------------------------------------------------------
+# РАБОТА С КОЛЛЕКЦИЯМИ
+#-----------------------------------------------------------------------------------------------------------------------------------------
+
+class AddCollection(BaseModel):
+    name: str
+    login: str
+
+@app.post("/add-collection")
+async def add_collection(collection: AddCollection):
+    user = collection_users.find_one({"login": collection.login})
+    if not user:
+        return HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    result = collection_collections.insert_one({
+        "name": collection.name,
+        "recipes_ids": [],
+    })
+    collection_users.update_one(
+        {"_id": user["_id"]},
+        {"$push": {"collections": str(result.inserted_id)}}
+    )
+    return {
+        "status": "Collection added successfully",
+        "collection_id": str(result.inserted_id),
+    }
+
+class RemoveCollection(BaseModel):
+    id: str
+    login: str
+
+@app.post("/remove-collection")
+async def remove_collection(collection: RemoveCollection):
+    user = collection_users.find_one({"login": collection.login})
+    if not user:
+        return HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    result = collection_collections.find_one({"_id": ObjectId(collection.id)})
+    if not result:
+        return HTTPException(
+            status_code=404,
+            detail="Collection not found"
+        )   
+
+    collection_users.update_one(
+        {"_id": user["_id"]},
+        {"$pull": {"collections": collection.id}}
+    )
+    collection_collections.delete_one({"_id": ObjectId(collection.id)})
+
+    return {
+        "status": "Collection remove successfully"
+    }
+
+class AddToCollection(BaseModel):
+    id_collection: str
+    id_recipe: str
+
+@app.post("/add-to-collection")
+async def add_to_collection(collection: AddToCollection):
+    result = collection_collections.find_one({"_id": ObjectId(collection.id_collection)})
+    if not(result):
+        return HTTPException(
+            status_code=404,
+            detail="Collection not found"
+        )
+    result = collection_recipes.find_one({"_id": ObjectId(collection.id_recipe)})
+    if not(result):
+        return HTTPException(
+            status_code=404,
+            detail="Recipe not found"
+        )
+    collection_collections.update_one(
+        {"_id": ObjectId(collection.id_collection)},
+        {"$push": {"recipes_ids": str(collection.id_recipe)}}
+    )
+    return {
+        "status": "Recipe to collection added successfully"
+    }
+
+@app.post("/remove-from-collection")
+async def remove_from_collection(collection: AddToCollection):
+    result = collection_collections.find_one({"_id": ObjectId(collection.id_collection)})
+    if not(result):
+        return HTTPException(
+            status_code=404,
+            detail="Collection not found"
+        )
+    if not(collection.id_recipe in result["recipes_ids"]):
+        return HTTPException(
+            status_code=404,
+            detail="Collection not have its recipe"
+        )
+    collection_collections.update_one(
+        {"_id": ObjectId(collection.id_collection)},
+        {"$pull": {"recipes_ids": str(collection.id_recipe)}}
+    )
+    return {
+        "status": "Recipe from collection remove successfully"
+    }
